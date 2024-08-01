@@ -41,7 +41,7 @@ tee /etc/krb5.conf <<EOF
 		kadmind_port = 749
 		kdc = $KDC_KADMIN_SERVER
 		admin_server = $KDC_KADMIN_SERVER
-		key_stash_file = /var/kerberos/krb5kdc/.$REALM
+		key_stash_file = etc/krb5kdc/.$REALM
 	}
 [domain_realm]
 	 .$REALM = $REALM
@@ -56,26 +56,25 @@ echo ""
 echo "==================================================================================="
 echo "==== /var/kerberos/krb5kdc/kdc.conf ==============================================="
 echo "==================================================================================="
-tee /var/kerberos/krb5kdc/kdc.conf <<EOF
+
+$REALM_LOWER_CASE=$(echo "$" | tr '[:upper:]' '[:lower:]')
+tee /etc/krb5kdc/kdc.conf <<EOF
 [realms]
 	$REALM = {
-		acl_file =/var/kerberos/krb5kdc/kadm5.acl
+		acl_file =/etc/krb5kdc/kadm5.acl
 		max_renewable_life = 7d 0h 0m 0s
 		supported_enctypes = $SUPPORTED_ENCRYPTION_TYPES
 		default_principal_flags = +preauth
 		ticket_lifetime = 24h
 		renew_lifetime = 7d
 	}
-[domain_realm]
-		 .$REALM = $REALM
-		 $REALM = $REALM
 EOF
 echo ""
 
 echo "==================================================================================="
 echo "==== /var/kerberos/krb5kdc/kadm5.acl =============================================="
 echo "==================================================================================="
-tee /var/kerberos/krb5kdc/kadm5.acl  <<EOF
+tee /etc/krb5kdc/kadm5.acl  <<EOF
 $KADMIN_PRINCIPAL_FULL *
 noPermissions@$REALM X
 EOF
@@ -88,10 +87,9 @@ MASTER_PASSWORD=$(tr -cd '[:alnum:]' < /dev/urandom | fold -w30 | head -n1)
 echo $MASTER_PASSWORD > /master_pwd.txt
 echo "Creating the KDC with password : $MASTER_PASSWORD"
 kdb5_util -P $MASTER_PASSWORD  -r $REALM create -s #If you specify the -s option, kdb5_util will stash a copy of the master key in a stash file
-chkconfig krb5kdc on
-chkconfig kadmin on
-service krb5kdc start
-service kadmin start
+
+service krb5-kdc start
+service krb5-admin-server start
 sleep 10
 
 echo ""
@@ -156,39 +154,13 @@ echo ""
 kadmin.local -q "addprinc -pw $POSTGRES_PASSWORD noPermissions@$REALM"
 echo ""
 
-echo "Adding host/gpdbsne.example.com principal  "
-kadmin.local -q "delete_principal -force host/gpdbsne.example.com"
-echo ""
-echo " addprinc -pw $POSTGRES_PASSWORD host/gpdbsne.example.com"
-kadmin.local -q "addprinc -pw $POSTGRES_PASSWORD host/gpdbsne.example.com"
-echo ""
-
-echo "Adding host/localhost principal  "
-kadmin.local -q "delete_principal -force host/localhost"
-echo ""
-echo " addprinc -pw $POSTGRES_PASSWORD host/localhost"
-kadmin.local -q "addprinc -pw $POSTGRES_PASSWORD host/localhost"
-echo ""
-
-
-echo "Adding gpadmin/localhost principal  "
-kadmin.local -q "delete_principal -force gpadmin/localhost"
-echo ""
-echo " addprinc -pw $POSTGRES_PASSWORD gpadmin/localhost"
-kadmin.local -q "addprinc -pw $POSTGRES_PASSWORD gpadmin/localhost"
-echo ""
-
-
-echo "Adding noPermissions principal for postgres"
-kadmin.local -q "delete_principal -force noPermissions@$REALM"
-echo ""
-kadmin.local -q "addprinc -pw $POSTGRES_PASSWORD noPermissions@$REALM"
-echo ""
-
 # Create a Kerberos keytab file with kadmin.local. The following example creates a keytab file gpdb-kerberos.keytab in the current directory with authentication information for the two principals.
 echo "Generate Keytab file "
-echo "kadmin.local -q \"xst -k /tmp/gpdb-kerberos.keytab $GPADMIN_PRINCIPAL_FULL $POSTGRES_PRINCIPAL_FULL host/localhost host/gpdbsne.example.com\""
-kadmin.local -q "xst -k /tmp/gpdb-kerberos.keytab $GPADMIN_PRINCIPAL_FULL $POSTGRES_PRINCIPAL_FULL host/localhost host/gpdbsne.example.com gpadmin/localhost"
+#kadmin.local -q "xst -k /tmp/gpdb-kerberos.keytab $GPADMIN_PRINCIPAL_FULL $POSTGRES_PRINCIPAL_FULL host/localhost host/gpdbsne.example.com gpadmin/localhost"
+rm -f /code/gpdb-kerberos.keytab
+kadmin.local -q "ktadd -k /code/gpdb-kerberos.keytab $GPADMIN_PRINCIPAL_FULL $POSTGRES_PRINCIPAL_FULL"
+chmod 755 /code/gpdb-kerberos.keytab
+
 echo ""
 echo "kadmin.local -q listprincs"
 kadmin.local -q listprincs
@@ -199,6 +171,7 @@ echo " To restart krb5kdc : use service krb5-kdc restart"
 echo " To get principal: kinit -k -t ./gpdb-kerberos.keytab gpadmin/kdc-kadmin@EXAMPLE.COM"
 echo " To list all the principals: kadmin.local -q listprincs"
 echo "=========================================================================="
+
 # We want the container to keep running until we explicitly kill it.
 # So the last command cannot immediately exit. See
 #   https://docs.docker.com/engine/reference/run/#detached-vs-foreground

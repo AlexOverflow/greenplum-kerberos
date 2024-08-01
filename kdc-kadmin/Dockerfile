@@ -2,21 +2,16 @@
 #  Dockerfile for a KDC-KADMIN
 #
 
-FROM centos:6.7
+FROM ubuntu:jammy
 
 EXPOSE 749 88
 
-RUN echo root:pivotal | chpasswd \
-    && yum install -y wget which passwd  sudo \
-    && yum install -y krb5-libs krb5-server  \
-    && yum install -y vim openssh-client \
-    && yum clean all
+ARG DEBIAN_FRONTEND=noninteractive
 
-RUN localedef -i en_US -f UTF-8 en_US.UTF-8
-RUN echo "LC_ALL=\"en_US.UTF-8\"" >> /etc/default/locale
-
-# default root password
-RUN echo "root:pivotal" | chpasswd
+RUN apt-get update \
+    && apt-get install -y krb5-kdc krb5-admin-server krb5-config \
+    && apt-get install -y iputils-ping \
+    && apt-get install -y nano
 
 ENV REALM ${REALM:-EXAMPLE.COM}
 ENV SUPPORTED_ENCRYPTION_TYPES ${SUPPORTED_ENCRYPTION_TYPES:-aes256-cts-hmac-sha1-96:normal}
@@ -29,5 +24,5 @@ ENV GPADMIN_PASSWORD ${GPADMIN_PASSWORD:-pivotal}
 ENV POSTGRES_PRINCIPAL ${POSTGRES_PRINCIPAL:-postgres/gpdbsne.example.com}
 ENV POSTGRES_PASSWORD ${POSTGRES_PASSWORD:-pivotal}
 
-COPY init-script.sh /tmp/
-CMD /tmp/init-script.sh
+COPY entrypoint.sh /tmp/
+CMD /tmp/entrypoint.sh

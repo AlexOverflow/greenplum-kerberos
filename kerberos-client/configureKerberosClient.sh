@@ -3,10 +3,12 @@ echo "==========================================================================
 echo "==== Kerberos Client =============================================================="
 echo "==================================================================================="
 KADMIN_PRINCIPAL_FULL=$KADMIN_PRINCIPAL@$REALM
+POSTGRES_PRINCIPAL_FULL=$POSTGRES_PRINCIPAL@$REALM
 
 echo "REALM: $REALM"
 echo "KADMIN_PRINCIPAL_FULL: $KADMIN_PRINCIPAL_FULL"
 echo "KADMIN_PASSWORD: $KADMIN_PASSWORD"
+echo "POSTGRES_PRINCIPAL_FULL: $POSTGRES_PRINCIPAL_FULL"
 echo ""
 
 function kadminCommand {
@@ -16,6 +18,8 @@ function kadminCommand {
 echo "==================================================================================="
 echo "==== /etc/krb5.conf ==============================================================="
 echo "==================================================================================="
+
+REALM_LOWER_CASE=$(echo "$REALM" | tr '[:upper:]' '[:lower:]')
 tee /etc/krb5.conf <<EOF
 [libdefaults]
 	default_realm = $REALM
@@ -24,6 +28,9 @@ tee /etc/krb5.conf <<EOF
 		kdc = $KDC_HOST
 		admin_server = $KDC_HOST
 	}
+	[domain_realm]
+   .$REALM_LOWER_CASE = $REALM
+   $REALM_LOWER_CASE = $REALM
 EOF
 echo ""
 
@@ -36,3 +43,8 @@ until kadminCommand "list_principals $KADMIN_PRINCIPAL_FULL"; do
 done
 echo "KDC and Kadmin are operational"
 echo ""
+
+kinit -k -t /code/gpdb-kerberos.keytab $POSTGRES_PRINCIPAL_FULL
+klist
+
+

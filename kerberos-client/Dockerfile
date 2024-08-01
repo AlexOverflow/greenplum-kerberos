@@ -2,16 +2,14 @@
 #  Dockerfile for a KDC-KADMIN
 #
 
-FROM centos:6.7
+FROM ubuntu:jammy
 
-RUN echo root:pivotal | chpasswd \
-        && yum install -y wget which passwd sudo \
-        && yum install -y  krb5-libs krb5-workstation \
-        && yum install -y vim openssh-client \
-        && yum clean all
+ARG DEBIAN_FRONTEND=noninteractive
 
-RUN localedef -i en_US -f UTF-8 en_US.UTF-8
-RUN echo "LC_ALL=\"en_US.UTF-8\"" >> /etc/default/locale
+RUN apt-get update \
+    && apt-get install krb5-user postgresql-client -y \
+    && apt-get install -y iputils-ping \
+    && apt-get install -y nano
 
 ENV REALM ${REALM:-EXAMPLE.COM}
 ENV KADMIN_PRINCIPAL ${KADMIN_PRINCIPAL:-kadmin/admin}
@@ -23,5 +21,5 @@ ENV GPADMIN_PASSWORD ${GPADMIN_PASSWORD:-pivotal}
 ENV POSTGRES_PRINCIPAL ${POSTGRES_PRINCIPAL:-postgres/gpdbsne.example.com}
 ENV POSTGRES_PASSWORD ${POSTGRES_PASSWORD:-pivotal}
 
-COPY init-script.sh configureKerberosClient.sh /tmp/
-CMD /tmp/init-script.sh
+COPY entrypoint.sh configureKerberosClient.sh /tmp/
+CMD /tmp/entrypoint.sh
